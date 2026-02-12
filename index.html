@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Will you be my walentine?</title>
+  <title>Will you be my valentine?</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
@@ -13,7 +13,7 @@
       font-family: 'Great Vibes', cursive;
     }
     .no-btn-runaway {
-      transition: left 0.1s ease-out, top 0.1s ease-out, opacity 0.3s ease-out;
+      transition: left 0.18s ease-out, top 0.18s ease-out, transform 0.18s ease-out, opacity 0.3s ease-out;
     }
     .yes-btn-grow {
       transition: transform 0.25s ease-out;
@@ -90,7 +90,7 @@
     }
   </style>
 </head>
-<body class="min-h-screen flex flex-col items-center justify-center p-6 overflow-hidden relative" style="background: linear-gradient(135deg, #fce7f3 0%, #fef3c7 35%, #e9d5ff 70%, #fbcfe8 100%);">
+  <body class="min-h-screen flex flex-col items-center justify-center px-4 py-6 sm:px-6 sm:py-8 overflow-hidden relative" style="background: linear-gradient(135deg, #fce7f3 0%, #fef3c7 35%, #e9d5ff 70%, #fbcfe8 100%);">
   <!-- Background: sparkles -->
   <div id="sparkles" class="absolute inset-0 pointer-events-none" aria-hidden="true"></div>
   <!-- Background: falling hearts -->
@@ -98,8 +98,8 @@
   <!-- Background: flying bats -->
   <div id="bats" class="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true"></div>
 
-  <main class="flex flex-col items-center gap-8 max-w-2xl w-full relative z-10">
-    <div class="w-80 h-80 rounded-2xl overflow-hidden shadow-xl bg-white/30 flex items-center justify-center flex-shrink-0">
+  <main class="flex flex-col items-center gap-6 sm:gap-8 max-w-md sm:max-w-xl md:max-w-2xl w-full relative z-10">
+    <div class="w-56 h-56 sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-2xl overflow-hidden shadow-xl bg-white/30 flex items-center justify-center flex-shrink-0">
       <img
         src="assets/bat-valentine.png"
         alt="Cute sparkly bat"
@@ -107,10 +107,12 @@
       />
     </div>
 
-    <p class="text-4xl font-barbie text-rose-700 text-center">Will you be my walentine?</p>
+    <p class="text-3xl sm:text-4xl md:text-5xl font-barbie text-rose-700 text-center leading-tight px-2">
+      Will you be my valentine?
+    </p>
 
-    <div id="btn-container" class="flex flex-row justify-center items-center gap-16 min-h-[5rem] relative w-full">
-      <div class="flex justify-end w-28">
+    <div id="btn-container" class="relative flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-16 min-h-[12rem] sm:min-h-[14rem] md:min-h-[16rem] relative w-full">
+      <div class="flex justify-center sm:justify-end w-full sm:w-28">
         <button
           type="button"
           id="yes-btn"
@@ -120,11 +122,11 @@
           Yes
         </button>
       </div>
-      <div id="no-btn-slot" class="flex justify-start w-28 min-h-[3.5rem] relative flex-shrink-0 overflow-visible">
+      <div id="no-btn-slot" class="flex justify-center sm:justify-start w-full sm:w-28 min-h-[3.5rem] flex-shrink-0 overflow-visible">
         <button
           type="button"
           id="no-btn"
-          class="no-btn-runaway absolute left-0 top-1/2 px-10 py-3.5 text-lg rounded-full bg-slate-300 text-slate-700 font-barbie font-medium shadow hover:bg-slate-400 focus:outline-none -translate-y-1/2"
+          class="no-btn-runaway absolute px-10 py-3.5 text-lg rounded-full bg-slate-300 text-slate-700 font-barbie font-medium shadow hover:bg-slate-400 focus:outline-none"
         >
           No
         </button>
@@ -137,89 +139,224 @@
       const yesBtn = document.getElementById('yes-btn');
       const noBtn = document.getElementById('no-btn');
       const container = document.getElementById('btn-container');
-      const noSlot = document.getElementById('no-btn-slot');
-      const STAGES = 4;
-      const runDistance = 160;
-      const triggerRadius = 180;
-      const yesScalePerStage = 0.3;
+      if (!yesBtn || !noBtn || !container) return;
+
+      const SETTINGS = {
+        stages: 4,
+        triggerRadius: 170,
+        yesScalePerStage: 0.3,
+        containerPadding: 8,
+        noOverlapGap: 12,
+        maxPositionAttempts: 24,
+      };
+
+      const isTouchDevice =
+        ('ontouchstart' in window) ||
+        (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
+
       let stage = 0;
       let yesScale = 1;
-      let noPosition = { x: 0 };
       let noInitialized = false;
-      let inNoZone = false;
+      let isNearNo = false;
+      let rafScheduled = false;
 
-      function initNoPosition() {
-        if (noInitialized) return;
-        noPosition.x = 0;
-        noBtn.style.left = '0';
-        noBtn.style.transform = 'translateY(-50%)';
-        noInitialized = true;
+      function getRectRelativeToContainer(targetRect, containerRect) {
+        return {
+          left: targetRect.left - containerRect.left,
+          top: targetRect.top - containerRect.top,
+          right: targetRect.right - containerRect.left,
+          bottom: targetRect.bottom - containerRect.top,
+          width: targetRect.width,
+          height: targetRect.height,
+        };
       }
-      function getNoRect() {
-        const r = noBtn.getBoundingClientRect();
-        const cr = container.getBoundingClientRect();
-        return { left: r.left, top: r.top, width: r.width, height: r.height, cr: cr };
+
+      function intersects(rectA, rectB) {
+        return !(
+          rectA.right <= rectB.left ||
+          rectA.left >= rectB.right ||
+          rectA.bottom <= rectB.top ||
+          rectA.top >= rectB.bottom
+        );
       }
-      function moveNoAwayOneDirection() {
-        initNoPosition();
-        noPosition.x = noPosition.x + runDistance;
-        const slotRect = noSlot.getBoundingClientRect();
-        const maxX = window.innerWidth - slotRect.left - noBtn.offsetWidth;
-        if (noPosition.x > maxX) noPosition.x = maxX;
-        noBtn.style.left = noPosition.x + 'px';
-        noBtn.style.transform = 'translateY(-50%)';
+
+      function isFarEnoughFromPointer(x, y, noWidth, noHeight, pointerX, pointerY, containerRect) {
+        if (typeof pointerX !== 'number' || typeof pointerY !== 'number') return true;
+        const centerX = containerRect.left + x + noWidth / 2;
+        const centerY = containerRect.top + y + noHeight / 2;
+        const dx = pointerX - centerX;
+        const dy = pointerY - centerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance >= SETTINGS.triggerRadius * 0.75;
+      }
+
+      function canPlaceNoButton(x, y, pointerX, pointerY) {
+        const containerRect = container.getBoundingClientRect();
+        const noWidth = noBtn.offsetWidth;
+        const noHeight = noBtn.offsetHeight;
+
+        const candidate = {
+          left: x,
+          top: y,
+          right: x + noWidth,
+          bottom: y + noHeight,
+        };
+
+        const yesRect = yesBtn.getBoundingClientRect();
+        const yesInContainer = getRectRelativeToContainer(yesRect, containerRect);
+        const yesSafeZone = {
+          left: yesInContainer.left - SETTINGS.noOverlapGap,
+          top: yesInContainer.top - SETTINGS.noOverlapGap,
+          right: yesInContainer.right + SETTINGS.noOverlapGap,
+          bottom: yesInContainer.bottom + SETTINGS.noOverlapGap,
+        };
+
+        if (intersects(candidate, yesSafeZone)) return false;
+        return isFarEnoughFromPointer(x, y, noWidth, noHeight, pointerX, pointerY, containerRect);
+      }
+
+      function placeNoButton(x, y) {
+        noBtn.style.left = x + 'px';
+        noBtn.style.top = y + 'px';
+        noBtn.style.transform = 'translate(0, 0)';
+      }
+
+      function moveNoToRandomPosition(pointerX, pointerY) {
+        const containerRect = container.getBoundingClientRect();
+        const noWidth = noBtn.offsetWidth;
+        const noHeight = noBtn.offsetHeight;
+        const minX = SETTINGS.containerPadding;
+        const minY = SETTINGS.containerPadding;
+        const maxX = containerRect.width - noWidth - SETTINGS.containerPadding;
+        const maxY = containerRect.height - noHeight - SETTINGS.containerPadding;
+
+        if (maxX <= minX || maxY <= minY) return;
+
+        let attempt = 0;
+
+        while (attempt < SETTINGS.maxPositionAttempts) {
+          const x = minX + Math.random() * (maxX - minX);
+          const y = minY + Math.random() * (maxY - minY);
+
+          if (canPlaceNoButton(x, y, pointerX, pointerY)) {
+            placeNoButton(x, y);
+            return;
+          }
+
+          attempt++;
+        }
+
+        const step = 12;
+        let y = minY;
+        while (y <= maxY) {
+          let x = minX;
+          while (x <= maxX) {
+            if (canPlaceNoButton(x, y, pointerX, pointerY)) {
+              placeNoButton(x, y);
+              return;
+            }
+            x = x + step;
+          }
+          y = y + step;
+        }
+      }
+
+      function getNoCenterDistance(pointerX, pointerY) {
+        const noRect = noBtn.getBoundingClientRect();
+        const centerX = noRect.left + noRect.width / 2;
+        const centerY = noRect.top + noRect.height / 2;
+        const dx = pointerX - centerX;
+        const dy = pointerY - centerY;
+        return Math.sqrt(dx * dx + dy * dy);
       }
 
       function advanceStage() {
-        if (stage >= STAGES) return;
+        if (stage >= SETTINGS.stages) return;
+
         stage++;
-        yesScale = 1 + stage * yesScalePerStage;
+        yesScale = 1 + stage * SETTINGS.yesScalePerStage;
         yesBtn.style.setProperty('--yes-scale', yesScale);
         yesBtn.style.transform = 'scale(' + yesScale + ')';
+
         yesBtn.classList.remove('yes-sparkle', 'yes-sparkle-more', 'yes-shake');
         if (stage >= 2) yesBtn.classList.add('yes-sparkle');
-        if (stage >= 3) yesBtn.classList.remove('yes-sparkle'), yesBtn.classList.add('yes-sparkle-more');
-        if (stage >= 4) yesBtn.classList.remove('yes-sparkle-more'), yesBtn.classList.add('yes-shake');
-        if (stage >= STAGES) {
+        if (stage >= 3) {
+          yesBtn.classList.remove('yes-sparkle');
+          yesBtn.classList.add('yes-sparkle-more');
+        }
+        if (stage >= 4) {
+          yesBtn.classList.remove('yes-sparkle-more');
+          yesBtn.classList.add('yes-shake');
+        }
+
+        if (stage >= SETTINGS.stages) {
           noBtn.style.opacity = '0';
           noBtn.style.pointerEvents = 'none';
         }
       }
 
-      container.addEventListener('mousemove', function (e) {
-        initNoPosition();
-        const rect = getNoRect();
-        const noCenterX = rect.left + rect.width / 2;
-        const noCenterY = rect.top + rect.height / 2;
-        const dx = e.clientX - noCenterX;
-        const dy = e.clientY - noCenterY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const near = dist < triggerRadius;
-        if (near) {
-          moveNoAwayOneDirection();
-          if (!inNoZone) {
-            inNoZone = true;
-            advanceStage();
-          }
-        } else {
-          inNoZone = false;
-        }
-      });
+      function initNoPosition() {
+        if (noInitialized) return;
+        // Start from CSS-defined position (next to "Yes"), do not move yet.
+        noInitialized = true;
+      }
 
-      noBtn.addEventListener('mouseenter', function () {
-        moveNoAwayOneDirection();
-        if (!inNoZone) {
-          inNoZone = true;
+      function triggerNoEscape(pointerX, pointerY) {
+        initNoPosition();
+        moveNoToRandomPosition(pointerX, pointerY);
+        if (!isNearNo) {
+          isNearNo = true;
           advanceStage();
         }
-      });
+      }
 
-      noBtn.addEventListener('mouseleave', function () {
-        inNoZone = false;
+      function handleMouseMove(event) {
+        if (rafScheduled) return;
+        rafScheduled = true;
+
+        requestAnimationFrame(function () {
+          rafScheduled = false;
+          initNoPosition();
+
+          const distance = getNoCenterDistance(event.clientX, event.clientY);
+          const isNear = distance < SETTINGS.triggerRadius;
+          if (isNear) {
+            triggerNoEscape(event.clientX, event.clientY);
+          } else {
+            isNearNo = false;
+          }
+        });
+      }
+
+      if (!isTouchDevice) {
+        container.addEventListener('mousemove', handleMouseMove);
+
+        noBtn.addEventListener('mouseenter', function (event) {
+          triggerNoEscape(event.clientX, event.clientY);
+        });
+
+        noBtn.addEventListener('mouseleave', function () {
+          isNearNo = false;
+        });
+      } else {
+        noBtn.addEventListener('touchstart', function (event) {
+          const touch = event.touches && event.touches.length > 0 ? event.touches[0] : null;
+          if (touch) {
+            triggerNoEscape(touch.clientX, touch.clientY);
+          } else {
+            triggerNoEscape();
+          }
+          isNearNo = false;
+          event.preventDefault();
+        }, { passive: false });
+      }
+
+      noBtn.addEventListener('click', function (event) {
+        event.preventDefault();
       });
 
       yesBtn.addEventListener('click', function () {
-        alert('Yay! Happy walentine\'s! 💕');
+        alert('Yay! Happy valentine\'s! 💕');
       });
 
       initNoPosition();
