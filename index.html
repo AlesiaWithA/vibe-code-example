@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Will you be my walentine?</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .font-barbie {
+      font-family: 'Great Vibes', cursive;
+    }
+    .no-btn-runaway {
+      transition: left 0.1s ease-out, top 0.1s ease-out, opacity 0.3s ease-out;
+    }
+    .yes-btn-grow {
+      transition: transform 0.25s ease-out;
+    }
+
+    /* Yes button: sparkle and shake by stage */
+    .yes-sparkle {
+      animation: yes-sparkle 1.5s ease-in-out infinite;
+    }
+    .yes-sparkle-more {
+      animation: yes-sparkle 0.8s ease-in-out infinite;
+    }
+    .yes-shake {
+      animation: yes-shake 0.4s ease-in-out infinite;
+    }
+    @keyframes yes-sparkle {
+      0%, 100% { box-shadow: 0 0 12px rgba(244, 114, 182, 0.6); filter: brightness(1); }
+      50% { box-shadow: 0 0 24px rgba(244, 114, 182, 0.9); filter: brightness(1.15); }
+    }
+    @keyframes yes-shake {
+      0%, 100% { transform: scale(var(--yes-scale, 1)) translateX(0); }
+      25% { transform: scale(var(--yes-scale, 1)) translateX(-4px); }
+      75% { transform: scale(var(--yes-scale, 1)) translateX(4px); }
+    }
+
+    /* Background sparkles */
+    .sparkle {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: radial-gradient(circle, #fff 30%, rgba(255, 182, 193, 0.8) 70%, transparent);
+      border-radius: 50%;
+      animation: sparkle-shine 2s ease-in-out infinite;
+    }
+    .sparkle::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      background: inherit;
+      border-radius: 50%;
+      filter: blur(2px);
+      opacity: 0.6;
+    }
+    @keyframes sparkle-shine {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.4); }
+    }
+
+    /* Falling hearts - start immediately */
+    .heart-fall {
+      position: absolute;
+      font-size: 1rem;
+      opacity: 0.7;
+      animation: heart-fall linear infinite;
+      pointer-events: none;
+    }
+    @keyframes heart-fall {
+      0% { transform: translateY(-10vh) rotate(0deg); }
+      100% { transform: translateY(110vh) rotate(360deg); }
+    }
+
+    /* Flying pink bats */
+    .bat-fly {
+      position: absolute;
+      font-size: 1.5rem;
+      pointer-events: none;
+      opacity: 0.55;
+      animation: bat-fly linear infinite;
+      filter: hue-rotate(-30deg) saturate(1.5) brightness(1.1);
+    }
+    @keyframes bat-fly {
+      0% { transform: translateX(-60px) translateY(0); }
+      100% { transform: translateX(calc(100vw + 60px)) translateY(0); }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-6 overflow-hidden relative" style="background: linear-gradient(135deg, #fce7f3 0%, #fef3c7 35%, #e9d5ff 70%, #fbcfe8 100%);">
+  <!-- Background: sparkles -->
+  <div id="sparkles" class="absolute inset-0 pointer-events-none" aria-hidden="true"></div>
+  <!-- Background: falling hearts -->
+  <div id="hearts" class="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true"></div>
+  <!-- Background: flying bats -->
+  <div id="bats" class="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true"></div>
+
+  <main class="flex flex-col items-center gap-8 max-w-2xl w-full relative z-10">
+    <div class="w-80 h-80 rounded-2xl overflow-hidden shadow-xl bg-white/30 flex items-center justify-center flex-shrink-0">
+      <img
+        src="assets/bat-valentine.png"
+        alt="Cute sparkly bat"
+        class="w-full h-full object-cover"
+      />
+    </div>
+
+    <p class="text-4xl font-barbie text-rose-700 text-center">Will you be my walentine?</p>
+
+    <div id="btn-container" class="flex flex-row justify-center items-center gap-16 min-h-[5rem] relative w-full">
+      <div class="flex justify-end w-28">
+        <button
+          type="button"
+          id="yes-btn"
+          class="yes-btn-grow px-10 py-3.5 text-lg rounded-full bg-rose-500 text-white font-barbie font-medium shadow-lg hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2"
+          style="--yes-scale: 1;"
+        >
+          Yes
+        </button>
+      </div>
+      <div id="no-btn-slot" class="flex justify-start w-28 min-h-[3.5rem] relative flex-shrink-0 overflow-visible">
+        <button
+          type="button"
+          id="no-btn"
+          class="no-btn-runaway absolute left-0 top-1/2 px-10 py-3.5 text-lg rounded-full bg-slate-300 text-slate-700 font-barbie font-medium shadow hover:bg-slate-400 focus:outline-none -translate-y-1/2"
+        >
+          No
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      const yesBtn = document.getElementById('yes-btn');
+      const noBtn = document.getElementById('no-btn');
+      const container = document.getElementById('btn-container');
+      const noSlot = document.getElementById('no-btn-slot');
+      const STAGES = 4;
+      const runDistance = 160;
+      const triggerRadius = 180;
+      const yesScalePerStage = 0.3;
+      let stage = 0;
+      let yesScale = 1;
+      let noPosition = { x: 0 };
+      let noInitialized = false;
+      let inNoZone = false;
+
+      function initNoPosition() {
+        if (noInitialized) return;
+        noPosition.x = 0;
+        noBtn.style.left = '0';
+        noBtn.style.transform = 'translateY(-50%)';
+        noInitialized = true;
+      }
+      function getNoRect() {
+        const r = noBtn.getBoundingClientRect();
+        const cr = container.getBoundingClientRect();
+        return { left: r.left, top: r.top, width: r.width, height: r.height, cr: cr };
+      }
+      function moveNoAwayOneDirection() {
+        initNoPosition();
+        noPosition.x = noPosition.x + runDistance;
+        const slotRect = noSlot.getBoundingClientRect();
+        const maxX = window.innerWidth - slotRect.left - noBtn.offsetWidth;
+        if (noPosition.x > maxX) noPosition.x = maxX;
+        noBtn.style.left = noPosition.x + 'px';
+        noBtn.style.transform = 'translateY(-50%)';
+      }
+
+      function advanceStage() {
+        if (stage >= STAGES) return;
+        stage++;
+        yesScale = 1 + stage * yesScalePerStage;
+        yesBtn.style.setProperty('--yes-scale', yesScale);
+        yesBtn.style.transform = 'scale(' + yesScale + ')';
+        yesBtn.classList.remove('yes-sparkle', 'yes-sparkle-more', 'yes-shake');
+        if (stage >= 2) yesBtn.classList.add('yes-sparkle');
+        if (stage >= 3) yesBtn.classList.remove('yes-sparkle'), yesBtn.classList.add('yes-sparkle-more');
+        if (stage >= 4) yesBtn.classList.remove('yes-sparkle-more'), yesBtn.classList.add('yes-shake');
+        if (stage >= STAGES) {
+          noBtn.style.opacity = '0';
+          noBtn.style.pointerEvents = 'none';
+        }
+      }
+
+      container.addEventListener('mousemove', function (e) {
+        initNoPosition();
+        const rect = getNoRect();
+        const noCenterX = rect.left + rect.width / 2;
+        const noCenterY = rect.top + rect.height / 2;
+        const dx = e.clientX - noCenterX;
+        const dy = e.clientY - noCenterY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const near = dist < triggerRadius;
+        if (near) {
+          moveNoAwayOneDirection();
+          if (!inNoZone) {
+            inNoZone = true;
+            advanceStage();
+          }
+        } else {
+          inNoZone = false;
+        }
+      });
+
+      noBtn.addEventListener('mouseenter', function () {
+        moveNoAwayOneDirection();
+        if (!inNoZone) {
+          inNoZone = true;
+          advanceStage();
+        }
+      });
+
+      noBtn.addEventListener('mouseleave', function () {
+        inNoZone = false;
+      });
+
+      yesBtn.addEventListener('click', function () {
+        alert('Yay! Happy walentine\'s! 💕');
+      });
+
+      initNoPosition();
+
+      // More sparkles
+      const sparklesEl = document.getElementById('sparkles');
+      const sparkleCount = 56;
+      for (let i = 0; i < sparkleCount; i++) {
+        const s = document.createElement('div');
+        s.className = 'sparkle';
+        s.style.left = Math.random() * 100 + '%';
+        s.style.top = Math.random() * 100 + '%';
+        s.style.animationDelay = (Math.random() * 2) + 's';
+        sparklesEl.appendChild(s);
+      }
+
+      // Falling hearts - start immediately (negative delay = already in motion)
+      const heartsEl = document.getElementById('hearts');
+      const heartSymbols = ['♥', '❤', '💕'];
+      const heartCount = 14;
+      for (let i = 0; i < heartCount; i++) {
+        const h = document.createElement('span');
+        h.className = 'heart-fall';
+        h.textContent = heartSymbols[i % heartSymbols.length];
+        h.style.left = Math.random() * 100 + '%';
+        const duration = 14 + Math.random() * 8;
+        h.style.animationDuration = duration + 's';
+        h.style.animationDelay = -(Math.random() * duration) + 's';
+        h.style.fontSize = (0.8 + Math.random() * 0.5) + 'rem';
+        h.style.color = ['#e11d48', '#fb7185', '#f472b6'][i % 3];
+        heartsEl.appendChild(h);
+      }
+
+      // Flying pink bats
+      const batsEl = document.getElementById('bats');
+      const batCount = 8;
+      for (let i = 0; i < batCount; i++) {
+        const b = document.createElement('span');
+        b.className = 'bat-fly';
+        b.textContent = '🦇';
+        b.style.top = (10 + Math.random() * 80) + '%';
+        b.style.animationDuration = (18 + Math.random() * 10) + 's';
+        b.style.animationDelay = (Math.random() * -25) + 's';
+        batsEl.appendChild(b);
+      }
+    })();
+  </script>
+</body>
+</html>
